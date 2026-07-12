@@ -28,4 +28,4 @@ Codes/
 
 Training scripts are configured through environment variables (e.g. `HATEMM_TEXT`,
 `HATEMM_AUDIO`, `HATEMM_AUDIO_DIM`, `HATEMM_FOLDS`, `HATEMM_EPOCHS`, `HATEMM_TAG`,
-`HATEMM_LAMBDA`); see `run_remaining_models.sh`, `run_contribA.sh`, `run_contribB.sh`.
+`HATEMM_LAMBDA`); see `scripts/run_*.sh`.
