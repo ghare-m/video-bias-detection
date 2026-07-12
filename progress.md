@@ -10,11 +10,11 @@ Explains M4 fusion. New scripts: `Codes/make_rationale_masks.py`, `contribB_expl
 5-fold, explained 429 hate videos (301 true-positive). Method = Integrated Gradients (primary) +
 vanilla-grad + occlusion; ERASER-style eval (plausibility + faithfulness) vs human `hate_snippet` spans.
 - **B2 temporal localisation** (283 usable TP videos, 94 low-coverage): on the **low-coverage subset
-  (where localisation is meaningful)** IG AUPRC **0.52 vs random 0.22** (~2.4×) — model attends to the
-  right seconds. On ALL videos the gap is smaller (0.68 vs 0.63) because GT coverage ~0.69 (little to
+  (where localisation is meaningful)** IG AUPRC **51.58% vs random 21.55%** (~2.4×) — model attends to
+  the right seconds. On ALL videos the gap is smaller (68.32% vs 62.98%) because GT coverage ~0.69 (little to
   localise) — the caveat we flagged. IG ≈ vanilla-grad (best); occlusion weaker. Example timelines
   (`figs/example_timelines.png`) show importance spiking inside the human span (compelling).
-- **Faithfulness**: comprehensiveness +0.067, sufficiency 0.074 (positive/modest — frames genuinely used).
+- **Faithfulness**: comprehensiveness 6.73%, sufficiency 7.40% (positive/modest — frames genuinely used).
 - **B1 modality attribution** (ablation): overall text 48% / vision 47% / audio 5%. Vision dominates
   for **Jews** (50%, audio 12%) → plausibly symbol-based/antisemitic hate is more visual. Nice finding.
 - Rationale masks: ViT-frame j ↔ second j*step; 429 hate videos (147/292 no-video excluded).
@@ -25,29 +25,30 @@ Second head on M4 predicts target group (Blacks/Jews/Other), masked to hate vide
 5-fold. New scripts: `Codes/make_target_labels.py`, `contribA_multitask.py` (env `HATEMM_LAMBDA`
 0=single/1=multi), `contribA_report.py`. Results in `runs/contribA/` (+ `contribA_summary.md`,
 `figs/target_confusion.png`). Ran on GPU (driver restored).
-- **Hate task unchanged**: single-task λ0 mF1 0.770 vs multi-task λ1 mF1 0.770 (Δ −0.001) → target
-  head is "free" (≈ M4's 0.767).
-- **Target task**: macro-F1 **0.378** (95% CI [0.344, 0.450]) vs majority 0.285 / random 0.333.
-  Blacks recall 0.93 (F1 0.85); Jews F1 0.25; Other F1 0.09 → strong on majority, weak on minority
+- **Hate task unchanged**: single-task λ0 mF1 77.03% vs multi-task λ1 mF1 76.98% (Δ ≈ 0) → target
+  head is "free" (≈ M4's 76.72%).
+- **Target task**: macro-F1 **37.79%** (95% CI [34.40%, 45.02%]) vs majority 28.46% / random 33.33%.
+  Blacks recall 92.52% (F1 84.62%); Jews F1 25.00%; Other F1 9.38% → strong on majority, weak on minority
   (severe imbalance; model over-predicts Blacks). Honest limitation → future work.
 - Target label build: primary target, 3-class {Blacks 321, Jews 67, Other 43}; multi-target→primary.
 - Not yet committed/pushed to GitHub (offer pending).
 
 ## ✅ PHASE 1 REPRODUCTION COMPLETE (2026-07-14)
 
-All 7 models trained. **Successful reproduction** — all within ±0.05 of paper Table 3, 5/7
-within ±0.02. Core finding reproduced (fusion > best unimodal; our best = **M4 0.786/0.767**).
+All 7 models trained. **Successful reproduction** — all within 5 pp of paper Table 3, 5/7
+within 2 pp. Core finding reproduced (fusion > best unimodal; our best = **M4 78.58%/76.72%**).
 Full table + caveats in **`runs/phase1/reproduction_summary.md`**. Result pickles in
 `runs/phase1/`, logs in `logs/train_*.log`.
 
 | model | ours acc/mF1 | paper | model | ours acc/mF1 | paper |
 |---|---|---|---|---|---|
-| T4 | 0.765/0.749 | .757/.733 | M1 | 0.763/0.742 | .798/.790 |
-| A2 | 0.675/0.657 | .690/.669 | M2 | 0.773/0.751 | .755/.765 |
-| V3 | 0.715/0.697 | .748/.733 | M3 | 0.778/0.762 | .777/.767 |
-|    |             |           | M4 | 0.786/0.767 | .767/.756 |
+| T4 | 76.46/74.95 | 75.70/73.30 | M1 | 76.27/74.17 | 79.80/79.00 |
+| A2 | 67.50/65.67 | 69.00/66.90 | M2 | 77.28/75.06 | 75.50/76.50 |
+| V3 | 71.47/69.70 | 74.80/73.30 | M3 | 77.84/76.24 | 77.70/76.70 |
+|    |             |             | M4 | 78.58/76.72 | 76.70/75.60 |
+(all values %)
 
-Caveats to write up: headline **M1 low** (0.742 vs 0.790) & our best fusion is M4 not M1;
+Caveats to write up: headline **M1 low** (74.17% vs 79.00%) & our best fusion is M4 not M1;
 **V3 weakest** match. Likely from our Vosk transcripts + regenerated splits.
 
 **NOTE: GPU driver on the VM was DOWN at train time** (`torch.cuda.is_available()`=False,

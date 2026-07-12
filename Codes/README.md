@@ -21,9 +21,9 @@ Codes/
     train_vision_lstm.py  # ViT + LSTM vision model (V3)
     train_fusion.py       # multimodal fusion (M1-M4)
   contribA/               # target-community classification (multi-task)
-    make_target_labels.py, train_multitask.py, report.py
+    make_target_labels.py, train_multitask.py
   contribB/               # explainability vs human rationale spans
-    make_rationale_masks.py, explain.py, report.py
+    make_rationale_masks.py, explain.py
 ```
 
 Training scripts are configured through environment variables (e.g. `HATEMM_TEXT`,

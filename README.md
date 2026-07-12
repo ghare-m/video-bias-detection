@@ -25,14 +25,13 @@ Full table + caveats in [`runs/phase1/reproduction_summary.md`](runs/phase1/repr
 
 | | Ours | Paper | | | Ours | Paper |
 |---|---|---|---|---|---|---|
-| T4 text | 0.749 | 0.733 | | M1 BERT+ViT+MFCC | 0.742 | 0.790 |
-| A2 audio | 0.657 | 0.669 | | M2 BERT+ViT+VGG19 | 0.751 | 0.765 |
-| V3 video | 0.697 | 0.733 | | M3 HXP+ViT+MFCC | 0.762 | 0.767 |
-| | | | | M4 HXP+ViT+VGG19 | **0.767** | 0.756 |
+| T4 text | 74.95% | 73.30% | | M1 BERT+ViT+MFCC | 74.17% | 79.00% |
+| A2 audio | 65.67% | 66.90% | | M2 BERT+ViT+VGG19 | 75.06% | 76.50% |
+| V3 video | 69.70% | 73.30% | | M3 HXP+ViT+MFCC | 76.24% | 76.70% |
+| | | | | M4 HXP+ViT+VGG19 | **76.72%** | 75.60% |
 
-**Outcome:** all 7 models within 5% of the paper (5/7 within 2%); the paper's core finding —
-**multimodal fusion beats any single modality** — reproduced (best model **M4**). Runs were on CPU
-(GPU driver was down at train time; classifier heads are tiny, results device-independent).
+**Outcome:** all 7 models within 5 percentage points of the paper (5/7 within 2 pp); the paper's
+core finding — **multimodal fusion beats any single modality** — reproduced (best model **M4**).
 
 ## Data (not in this repo)
 Download the HateMM dataset from Zenodo **[10.5281/zenodo.7799469](https://doi.org/10.5281/zenodo.7799469)**
@@ -62,8 +61,8 @@ python Codes/features/video_vit.py    # ViT video
 bash run_remaining_models.sh          # V3 + M1..M4  (T4/A2 via Codes/reproduction/train_unimodal.py)
 
 # 5. Contributions
-bash run_contribA.sh                  # target-community multi-task; then Codes/contribA/report.py
-bash run_contribB.sh                  # explainability; then Codes/contribB/report.py
+bash run_contribA.sh                  # target-community multi-task -> runs/contribA/
+bash run_contribB.sh                  # explainability -> runs/contribB/
 ```
 See `progress.md` for the exact commands, env-variable interface, and every fix applied.
 
