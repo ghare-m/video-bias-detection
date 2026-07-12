@@ -1,5 +1,5 @@
 import os
-# repro fix: read project root from env (was hardcoded './') so paths are unambiguous
+# read project root from env (was hardcoded './') so paths are unambiguous
 FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + '/'
 
 from os import walk, listdir
@@ -10,7 +10,7 @@ from tqdm import tqdm
 video_labels = []
 target_folder = FOLDER_NAME +'/Dataset_Images/'
 folder1 = ["AllVideos"]
-# repro fix: ensure the output dir exists (original code assumed it was pre-created)
+# ensure the output dir exists (original code assumed it was pre-created)
 os.makedirs(target_folder, exist_ok=True)
 
 

@@ -11,13 +11,12 @@ pipeline from raw videos. Phases 2–3 (my original contributions) build on this
 > results. Please cite the original paper (bibtex at the bottom).
 
 ## What this repo contains
-- `Codes/` — the pipeline: our new helper scripts (`make_folds.py`, `extract_audio.py`,
-  `make_transcripts.py`) + the fixed/updated feature-extraction and training scripts (`2`–`9`,
-  `frameExtract.py`, `models.py`) + `build_presentation.py`.
-- `runs/phase1/` — **reproduction results**: per-model 5-fold result pickles, the chart
-  (`figs/results_macroF1.png`), and **`reproduction_summary.md`** (the headline table + verdict).
-- `progress.md` — a detailed running log of everything done (env, data, features, training).
-- `context.md` — the project design doc (research questions, method, planned contributions).
+- `Codes/` — the pipeline, grouped into `preprocessing/`, `features/`, `reproduction/`,
+  `contribA/`, `contribB/` (see `Codes/README.md` for the file map).
+- `runs/phase1/` — **reproduction results** + `reproduction_summary.md`.
+- `runs/contribA/`, `runs/contribB/` — the two contributions' results, summaries and figures.
+- `progress.md` — a detailed running log of everything done.
+- `context.md` — the project design doc (research questions, method, contributions).
 - `requirements.lock.txt` — exact pinned environment.
 - **Not included:** the dataset (videos/features/models) and the paper PDF — see *Data* below.
 
@@ -48,19 +47,23 @@ pip install -r requirements.txt          # + python-pptx if building the slides
 export HATEMM_ROOT=/path/to/data          # scripts read this; data lives here
 
 # 2. Prep (from repo root)
-python Codes/make_folds.py                # train/val/test + 5-fold splits
-python Codes/extract_audio.py             # AudioFiles/*.wav
-python Codes/make_transcripts.py          # Vosk transcripts (needs vosk-model-en-us-0.22)
-python Codes/frameExtract.py              # 1 fps frames
+python Codes/preprocessing/make_folds.py        # train/val/test + 5-fold splits
+python Codes/preprocessing/extract_audio.py     # AudioFiles/*.wav
+python Codes/preprocessing/make_transcripts.py  # Vosk transcripts (needs vosk-model-en-us-0.22)
+python Codes/preprocessing/extract_frames.py    # 1 fps frames
 
 # 3. Features
-python "Codes/2.BERTandHateXPlainEmbedding.py"   # text (HateXplain + BERT)
-python "Codes/3.AudioMFCC_Feat_andSpectrumGen.py"# MFCC + spectrograms
-python "Codes/4.AudioVGG19andInceptionFeat.py"   # VGG19 audio (rewritten)
-python "Codes/5.Model-ViT_featureExtract.py"     # ViT video
+python Codes/features/text.py         # text (HateXplain + BERT)
+python Codes/features/audio_mfcc.py   # MFCC + spectrograms
+python Codes/features/audio_vgg19.py  # VGG19 audio
+python Codes/features/video_vit.py    # ViT video
 
-# 4. Train (scripts 6/8/9 are env-configurable; see run_remaining_models.sh)
-bash run_remaining_models.sh              # V3 + M1..M4  (T4/A2 via script 8)
+# 4. Train (env-configurable; see run_remaining_models.sh)
+bash run_remaining_models.sh          # V3 + M1..M4  (T4/A2 via Codes/reproduction/train_unimodal.py)
+
+# 5. Contributions
+bash run_contribA.sh                  # target-community multi-task; then Codes/contribA/report.py
+bash run_contribB.sh                  # explainability; then Codes/contribB/report.py
 ```
 See `progress.md` for the exact commands, env-variable interface, and every fix applied.
 

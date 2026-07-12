@@ -1,12 +1,10 @@
+
 import os
-# repro fix: project root from env (was '../../'), trailing '/'
+# project root from env (was '../../'), trailing '/'
 FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
-# repro: env-configurable so one script handles T4 (HateXplain) and A2 (VGG19), etc.
-_FEAT_PICKLE = os.environ.get("HATEMM_FEAT", "vgg19_audFeatureMap.p")
-_FEAT_DIM    = int(os.environ.get("HATEMM_FEAT_DIM", "1000"))
-_EPOCHS      = int(os.environ.get("HATEMM_EPOCHS", "20"))
-_FOLDS       = os.environ.get("HATEMM_FOLDS", "fold1,fold2,fold3,fold4,fold5").split(",")
-_TAG         = os.environ.get("HATEMM_TAG", "audiovgg19")
+_EPOCHS = int(os.environ.get("HATEMM_EPOCHS", "20"))
+_FOLDS  = os.environ.get("HATEMM_FOLDS", "fold1,fold2,fold3,fold4,fold5").split(",")
+_TAG    = os.environ.get("HATEMM_TAG", "V3_vitlstm")
 
 """Video classification model part
 
@@ -52,20 +50,18 @@ def fix_the_random(seed_val = 2021):
 fix_the_random(2021)
 
 
-"""TEXT MODEL"""
-
-class Text_Model(nn.Module):
-    def __init__(self, input_size, fc1_hidden, fc2_hidden, output_size):
-        super().__init__()
-        self.network=nn.Sequential(
-            nn.Linear(input_size,fc1_hidden),
-            nn.ReLU(),
-            nn.Linear(fc1_hidden, fc2_hidden),
-            nn.ReLU(),
-            nn.Linear(fc2_hidden, output_size),
-        )
-    def forward(self, xb):
-        return self.network(xb)
+class LSTM(nn.Module):
+    def __init__(self, input_emb_size = 768, no_of_frames = 100):
+        super(LSTM, self).__init__()
+        self.lstm = nn.LSTM(input_emb_size, 128)
+        self.fc = nn.Linear(128*no_of_frames, 2)
+        
+    def forward(self, x):
+        x, _ = self.lstm(x)
+        x = x.view(x.shape[0], -1)
+        x = self.fc(x)
+        return x 
+    
 
 ## ---------------------- Dataloader ---------------------- ##
 class Dataset_3DCNN(data.Dataset):
@@ -114,19 +110,46 @@ def evalMetric(y_true, y_pred):
 
 
 
-import pickle
-with open(FOLDER_NAME+_FEAT_PICKLE,'rb') as fp:   # repro: env-selected feature (HateXplain / VGG19 / ...)
-    inputDataFeatures = pickle.load(fp)
+with open(FOLDER_NAME+'final_allNewData.p', 'rb') as fp:
+    allDataAnnotation = pickle.load(fp)
 
-# Audio parameters
-input_size_audio = _FEAT_DIM   # repro: 768 (HateXplain) or 1000 (VGG19) via env
-fc1_hidden_audio, fc2_hidden_audio = 128, 128
+# train, test split
+train_listTemp, train_labelTemp= allDataAnnotation['train']
+val_listTemp, val_labelTemp  =  allDataAnnotation['val']
+test_listTemp, test_labelTemp  =  allDataAnnotation['test']
+
+
+allVidList = []
+allVidLab = []
+
+allVidList.extend(train_listTemp)
+allVidList.extend(val_listTemp)
+allVidList.extend(test_listTemp)
+
+allVidLab.extend(train_labelTemp)
+allVidLab.extend(val_labelTemp)
+allVidLab.extend(test_labelTemp)
+
+
+inputDataFeatures = {}
+for i in allVidList:
+    with open(FOLDER_NAME+"VITF/"+i+"_vit.p", 'rb') as fp:
+        inputDataFeatures[i] = np.array(pickle.load(fp))    
+
+
+
+
+input_size = 768
+sequence_length = 100
+hidden_size = 128
+num_layers = 2
+
 
 # training parameters
 k = 2            # number of target category
-epochs = _EPOCHS  # repro: env-configurable
+epochs = _EPOCHS  # env-configurable
 batch_size = 10
-learning_rate = 1e-4
+learning_rate = 0.001 #1e-4
 log_interval = 1
 
 
@@ -194,7 +217,6 @@ def validation(model, device, optimizer, test_loader):
     # to compute accuracy
     all_y = torch.stack(all_y, dim=0)
     all_y_pred = torch.stack(all_y_pred, dim=0)
-
     print("====================")
     # try:
     metrics = evalMetric(all_y.cpu().data.squeeze().numpy(), all_y_pred.cpu().data.squeeze().numpy())
@@ -233,7 +255,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-allF = _FOLDS  # repro: env-configurable
+allF = _FOLDS  # env-configurable
 
 
 finalOutputAccrossFold ={}
@@ -251,7 +273,7 @@ for fold in allF:
     valid_loader = data.DataLoader(valid_set, collate_fn = collate_fn, **valParams)
 
 
-    comb = Text_Model(input_size_audio, fc1_hidden_audio, fc2_hidden_audio,  2).to(device)
+    comb = LSTM().to(device)
 
 
     # Parallelize model to multiple GPUs
@@ -300,7 +322,7 @@ for fold in allF:
         
 
 os.makedirs(FOLDER_NAME+"../runs/phase1", exist_ok=True)
-with open(FOLDER_NAME+f"../runs/phase1/foldWiseRes_{_TAG}.p", 'wb') as fp:  # repro: tagged output
+with open(FOLDER_NAME+f"../runs/phase1/foldWiseRes_{_TAG}.p", 'wb') as fp:  # tagged output
     pickle.dump(finalOutputAccrossFold,fp)
         
 allValueDict ={}
@@ -317,4 +339,3 @@ import numpy as np
 for i in allValueDict:
     print(f"{i} : Mean {np.mean(allValueDict[i])}  STD: {np.std(allValueDict[i])}")
 
-    

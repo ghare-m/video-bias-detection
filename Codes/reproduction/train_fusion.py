@@ -1,10 +1,14 @@
 
 import os
-# repro fix: project root from env (was '../../'), trailing '/'
+# project root from env (was '../../'), trailing '/'
 FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
-_EPOCHS = int(os.environ.get("HATEMM_EPOCHS", "20"))
-_FOLDS  = os.environ.get("HATEMM_FOLDS", "fold1,fold2,fold3,fold4,fold5").split(",")
-_TAG    = os.environ.get("HATEMM_TAG", "V3_vitlstm")
+# env-configurable run so M1-M4 (and smoke tests) reuse this one script
+_TEXT_PICKLE  = os.environ.get("HATEMM_TEXT",  "all_HateXPlainembedding.p")
+_AUDIO_PICKLE = os.environ.get("HATEMM_AUDIO", "vgg19_audFeatureMap.p")
+_AUDIO_DIM    = int(os.environ.get("HATEMM_AUDIO_DIM", "1000"))
+_EPOCHS       = int(os.environ.get("HATEMM_EPOCHS", "20"))
+_FOLDS        = os.environ.get("HATEMM_FOLDS", "fold1,fold2,fold3,fold4,fold5").split(",")
+_TAG          = os.environ.get("HATEMM_TAG", "vit_hateX_audioVGG19_lstm")
 
 """Video classification model part
 
@@ -31,8 +35,12 @@ from tqdm import tqdm
 from sklearn.metrics import *
 
 
+import torch
+import pandas as pd
+#import librosa
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, random_split
+#import librosa.display
 import matplotlib.pyplot as plt
 import tarfile
 import torch.nn as nn
@@ -50,11 +58,25 @@ def fix_the_random(seed_val = 2021):
 fix_the_random(2021)
 
 
+class Text_Model(nn.Module):
+    def __init__(self, input_size, fc1_hidden, fc2_hidden, output_size):
+        super().__init__()
+        self.network=nn.Sequential(
+            nn.Linear(input_size,fc1_hidden),
+            nn.ReLU(),
+            nn.Linear(fc1_hidden, fc2_hidden),
+            nn.ReLU(),
+            nn.Linear(fc2_hidden, output_size),
+        )
+    def forward(self, xb):
+        return self.network(xb)
+
+ 
 class LSTM(nn.Module):
     def __init__(self, input_emb_size = 768, no_of_frames = 100):
         super(LSTM, self).__init__()
         self.lstm = nn.LSTM(input_emb_size, 128)
-        self.fc = nn.Linear(128*no_of_frames, 2)
+        self.fc = nn.Linear(128*no_of_frames, 64)
         
     def forward(self, x):
         x, _ = self.lstm(x)
@@ -62,6 +84,35 @@ class LSTM(nn.Module):
         x = self.fc(x)
         return x 
     
+ 
+
+class Aud_Model(nn.Module):
+    def __init__(self, input_size, fc1_hidden, fc2_hidden, output_size):
+        super().__init__()
+        self.network=nn.Sequential(
+            nn.Linear(input_size,fc1_hidden),
+            nn.ReLU(),
+            nn.Linear(fc1_hidden, fc2_hidden),
+            nn.ReLU(),
+            nn.Linear(fc2_hidden, output_size),
+        )
+    def forward(self, xb):
+        return self.network(xb)
+    
+class Combined_model(nn.Module):
+    def __init__(self, text_model, video_model, audio_model, num_classes):
+        super().__init__()
+        self.text_model = text_model
+        self.audio_model = audio_model
+        self.video_model = video_model
+        self.fc_output   = nn.Linear(3*64, num_classes)
+    def forward(self, x_text, x_vid, x_audio):
+        tex_out = self.text_model(x_text)
+        vid_out = self.video_model(x_vid)
+        aud_out = self.audio_model(x_audio)
+        inp = torch.cat((tex_out, vid_out, aud_out), dim = 1)
+        out = self.fc_output(inp)
+        return out
 
 ## ---------------------- Dataloader ---------------------- ##
 class Dataset_3DCNN(data.Dataset):
@@ -76,8 +127,8 @@ class Dataset_3DCNN(data.Dataset):
         return len(self.folders)
 
     def read_text(self,selected_folder):
-        return torch.tensor(inputDataFeatures[selected_folder])
-        
+        return torch.tensor(textData[selected_folder]), torch.tensor(vidData[selected_folder]), torch.tensor(audData[selected_folder])
+    
 
     def __getitem__(self, index):
         "Generates one sample of data"
@@ -85,13 +136,13 @@ class Dataset_3DCNN(data.Dataset):
         folder = self.folders[index]
         try:
             # Load data
-            X_text = self.read_text(folder)
-            y = torch.LongTensor([self.labels[index]])         # (labels) LongTensor are for int64 instead of FloatTensor
+            X_text, X_vid, X_audio = self.read_text(folder)
+            y = torch.LongTensor([self.labels[index]])                             # (labels) LongTensor are for int64 instead of FloatTensor
         except:
             with open("Exceptions.txt","a") as f:
                 f.write("{}\n".format(folder))
             return None
-        return X_text, y
+        return X_text, X_vid, X_audio, y
 
 def evalMetric(y_true, y_pred):
     try:
@@ -109,47 +160,57 @@ def evalMetric(y_true, y_pred):
 
 
 
+#loading Audio features
+import pickle
 
+with open(FOLDER_NAME+_TEXT_PICKLE,'rb') as fp:   # env-selected text modality
+    textData = pickle.load(fp)
+
+with open(FOLDER_NAME+_AUDIO_PICKLE,'rb') as fp:  # env-selected audio modality
+    audData = pickle.load(fp)
+
+    
 with open(FOLDER_NAME+'final_allNewData.p', 'rb') as fp:
     allDataAnnotation = pickle.load(fp)
 
 # train, test split
-train_listTemp, train_labelTemp= allDataAnnotation['train']
-val_listTemp, val_labelTemp  =  allDataAnnotation['val']
-test_listTemp, test_labelTemp  =  allDataAnnotation['test']
-
-
+train_list, train_label= allDataAnnotation['train']
+val_list, val_label  =  allDataAnnotation['val']
+test_list, test_label  =  allDataAnnotation['test']
+    
 allVidList = []
 allVidLab = []
 
-allVidList.extend(train_listTemp)
-allVidList.extend(val_listTemp)
-allVidList.extend(test_listTemp)
+allVidList.extend(train_list)
+allVidList.extend(val_list)
+allVidList.extend(test_list)
 
-allVidLab.extend(train_labelTemp)
-allVidLab.extend(val_labelTemp)
-allVidLab.extend(test_labelTemp)
+allVidLab.extend(train_label)
+allVidLab.extend(val_label)
+allVidLab.extend(test_label)
 
 
-inputDataFeatures = {}
+vidData ={}
 for i in allVidList:
     with open(FOLDER_NAME+"VITF/"+i+"_vit.p", 'rb') as fp:
-        inputDataFeatures[i] = np.array(pickle.load(fp))    
+        vidData[i] = np.array(pickle.load(fp))    
+  
 
 
 
+# Audio parameters
+input_size_text = 768 #40 #76800 #
 
-input_size = 768
-sequence_length = 100
-hidden_size = 128
-num_layers = 2
+input_size_audio = _AUDIO_DIM  # 1000 (VGG19) or 40 (MFCC) via env
 
+
+fc1_hidden_audio, fc2_hidden_audio = 128, 128
 
 # training parameters
 k = 2            # number of target category
-epochs = _EPOCHS  # repro: env-configurable
+epochs = _EPOCHS  # env-configurable
 batch_size = 10
-learning_rate = 0.001 #1e-4
+learning_rate = 1e-4
 log_interval = 1
 
 
@@ -161,20 +222,20 @@ def train(log_interval, model, device, train_loader, optimizer, epoch):
     scores = []
     N_count = 0   # counting total trained sample in one epoch
 
-    for batch_idx, (X_text, y) in enumerate(train_loader):
+    for batch_idx, (X_text, X_vid, X_aud, y) in enumerate(train_loader):
         # distribute data to device 
-        X_text, y = (X_text.float()).to(device), y.to(device).view(-1, )
+        X_text, X_vid, X_aud, y = (X_text.float()).to(device), (X_vid.float()).to(device), (X_aud.float()).to(device), y.to(device).view(-1, )
     
         N_count += X_text.size(0)
 
         optimizer.zero_grad()
-        output = model(X_text)  # output size = (batch, number of classes)
+        output = model(X_text, X_vid, X_aud)  # output size = (batch, number of classes)
 
         loss = F.cross_entropy(output, y, weight=torch.FloatTensor([0.41, 0.59]).to(device))
         #loss = F.cross_entropy(output, y)
         losses.append(loss.item())
 
-        # to compute accuracy
+            # to compute accuracy
         y_pred = torch.max(output, 1)[1]  # y_pred != output
         metrics = evalMetric(y.cpu().data.squeeze().numpy(), y_pred.cpu().data.squeeze().numpy())
         scores.append(metrics)         # computed on CPU
@@ -189,8 +250,7 @@ def train(log_interval, model, device, train_loader, optimizer, epoch):
 	
     return losses, scores
 
-
-def validation(model, device, optimizer, test_loader):
+def validation(model, device, optimizer, test_loader, testingType = "Test"):
     # set model as testing mode
     model.eval()
 
@@ -198,11 +258,11 @@ def validation(model, device, optimizer, test_loader):
     all_y = []
     all_y_pred = []
     with torch.no_grad():
-        for X_text, y in test_loader:
+        for X_text, X_vid, X_aud, y in test_loader:
             # distribute data to device
-            X_text, y = (X_text.float()).to(device), y.to(device).view(-1, )
+            X_text, X_vid, X_aud, y = (X_text.float()).to(device), (X_vid.float()).to(device), (X_aud.float()).to(device), y.to(device).view(-1, )
 
-            output = model(X_text)
+            output = model(X_text, X_vid, X_aud)
 
             loss = F.cross_entropy(output, y, reduction='sum')
             test_loss += loss.item()                 # sum up batch loss
@@ -217,6 +277,7 @@ def validation(model, device, optimizer, test_loader):
     # to compute accuracy
     all_y = torch.stack(all_y, dim=0)
     all_y_pred = torch.stack(all_y_pred, dim=0)
+
     print("====================")
     # try:
     metrics = evalMetric(all_y.cpu().data.squeeze().numpy(), all_y_pred.cpu().data.squeeze().numpy())
@@ -224,14 +285,14 @@ def validation(model, device, optimizer, test_loader):
     #   metrics = None
 
     # show information
-    print('\nTest set: ({:d} samples): Average loss: {:.4f}, Accuracy: {:.2f}%, MF1 Score: {:.4f}, F1 Score: {:.4f}, Area Under Curve: {:.4f}, Precision: {:.4f}, Recall Score: {:.4f}'.format(
+    print('\n '+testingType+' set: ({:d} samples): Average loss: {:.4f}, Accuracy: {:.2f}%, MF1 Score: {:.4f}, F1 Score: {:.4f}, Area Under Curve: {:.4f}, Precision: {:.4f}, Recall Score: {:.4f}'.format(
                 len(all_y), test_loss, 100 * metrics['accuracy'], metrics['mF1Score'], metrics['f1Score'], metrics['auc'], metrics['precision'], metrics['recall']))
   
     # # save Pytorch models of best record
     # torch.save(model.state_dict(), os.path.join(save_model_path, '3dcnn_epoch{}.pt'.format(epoch + 1)))  # save spatial_encoder
     # torch.save(optimizer.state_dict(), os.path.join(save_model_path, '3dcnn_optimizer_epoch{}.pt'.format(epoch + 1)))      # save optimizer
     # print("Epoch {} model saved!".format(epoch + 1))
-
+    print(testingType + " Len:", len(list(all_y_pred.cpu().data.squeeze().numpy())))
     return test_loss, metrics, list(all_y_pred.cpu().data.squeeze().numpy())
 
 
@@ -244,8 +305,6 @@ device = torch.device("cuda" if use_cuda else "cpu")   # use CPU or GPU
 params = {'batch_size': batch_size, 'shuffle': True, 'num_workers': 2, 'pin_memory': True} if use_cuda else {}
 valParams = {'batch_size': batch_size, 'shuffle': False, 'num_workers': 2, 'pin_memory': True} if use_cuda else {}
 
-
-
 with open(FOLDER_NAME+'allFoldDetails.p', 'rb') as fp:
     allDataAnnotation = pickle.load(fp)
 
@@ -255,7 +314,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-allF = _FOLDS  # repro: env-configurable
+allF = _FOLDS  # env-configurable (e.g. just fold1 for a smoke test)
 
 
 finalOutputAccrossFold ={}
@@ -273,7 +332,10 @@ for fold in allF:
     valid_loader = data.DataLoader(valid_set, collate_fn = collate_fn, **valParams)
 
 
-    comb = LSTM().to(device)
+    tex = Text_Model(input_size_text, fc1_hidden_audio, fc2_hidden_audio, 64).to(device)
+    vid = LSTM().to(device)
+    aud = Aud_Model(input_size_audio, fc1_hidden_audio, fc2_hidden_audio, 64).to(device)
+    comb = Combined_model(tex, vid, aud, k).to(device)
 
 
     # Parallelize model to multiple GPUs
@@ -298,12 +360,13 @@ for fold in allF:
     for epoch in range(epochs):
         # train, test model
         train_losses, train_scores = train(log_interval, comb, device, train_loader, optimizer, epoch)
-        test_loss, test_scores, veTest_pred = validation(comb, device, optimizer, test_loader)
-        test_loss1, test_scores1, veValid_pred = validation(comb, device, optimizer, valid_loader)
+        test_loss, test_scores, veTest_pred = validation(comb, device, optimizer, test_loader, 'Test')
+        test_loss1, test_scores1, veValid_pred = validation(comb, device, optimizer, valid_loader, 'Valid')
         if (test_scores1['mF1Score']>finalScoreAcc):
             finalScoreAcc = test_scores1['mF1Score']
             validFinalValue = test_scores1
             testFinalValue = test_scores
+            print("veTest_pred", len(veTest_pred))
             prediction = {'test_list': test_list , 'test_label': test_label, 'test_pred': veTest_pred}
 
         # save results
@@ -322,7 +385,7 @@ for fold in allF:
         
 
 os.makedirs(FOLDER_NAME+"../runs/phase1", exist_ok=True)
-with open(FOLDER_NAME+f"../runs/phase1/foldWiseRes_{_TAG}.p", 'wb') as fp:  # repro: tagged output
+with open(FOLDER_NAME+f"../runs/phase1/foldWiseRes_{_TAG}.p", 'wb') as fp:  # tagged output
     pickle.dump(finalOutputAccrossFold,fp)
         
 allValueDict ={}
@@ -339,3 +402,4 @@ import numpy as np
 for i in allValueDict:
     print(f"{i} : Mean {np.mean(allValueDict[i])}  STD: {np.std(allValueDict[i])}")
 
+    

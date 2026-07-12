@@ -1,20 +1,6 @@
-"""4.AudioVGG19andInceptionFeat.py  (REPRO REWRITE)
-
-The original script here was non-functional: undefined `device` / `num_video_features` /
-`num_audio_features` / `vidFeatureMap`, a nonsensical PCA reshaping block, a wrong audio path
-(`/Audio/Audio_plots/` vs the `/Audio_plots/` that script 3 writes), and an InceptionV3 video
-branch that is OUT OF SCOPE for our reproduction (model V2 dropped).
-
-This rewrite keeps only the part we need — the **AudioVGG19 (A2)** feature used by the paper:
-each audio spectrogram PNG (from script 3) → VGG19 (ImageNet-pretrained) → the **1000-d** output
-vector, exactly as the paper describes ("1000 dimensional feature vectors ... pre-trained VGG-19").
-Image preprocessing matches the original (Resize 224, ToTensor, Normalize(0.5, 0.5)).
-
-Input  : $HATEMM_ROOT/Audio_plots/<stem>.png   (1068 — produced by script 3)
-         $HATEMM_ROOT/final_allNewData.p        (the full video list)
-Output : $HATEMM_ROOT/vgg19_audFeatureMap.p     ({stem: [1000 floats]})
-         Missing spectrograms (the 15 no-audio videos) are zero-filled so all 1083 are covered.
-"""
+# AudioVGG19 (A2) features: each audio spectrogram PNG -> VGG19 -> 1000-d vector.
+# Reads Audio_plots/<stem>.png (from audio_mfcc.py), writes vgg19_audFeatureMap.p.
+# Videos with no audio (no spectrogram) are zero-filled so all 1083 are covered.
 
 import os
 import pickle

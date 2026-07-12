@@ -4,6 +4,35 @@
 > then this file (what's actually been done). Update this after every meaningful step.
 > Last updated: 2026-06-18 (end of day 1).
 
+## ✅ CONTRIBUTION B DONE (explainability vs human time-spans)
+Explains M4 fusion. New scripts: `Codes/make_rationale_masks.py`, `contribB_explain.py`,
+`contribB_report.py`. Results in `runs/contribB/` (`contribB_summary.md` + figs). GPU, seed 2021,
+5-fold, explained 429 hate videos (301 true-positive). Method = Integrated Gradients (primary) +
+vanilla-grad + occlusion; ERASER-style eval (plausibility + faithfulness) vs human `hate_snippet` spans.
+- **B2 temporal localisation** (283 usable TP videos, 94 low-coverage): on the **low-coverage subset
+  (where localisation is meaningful)** IG AUPRC **0.52 vs random 0.22** (~2.4×) — model attends to the
+  right seconds. On ALL videos the gap is smaller (0.68 vs 0.63) because GT coverage ~0.69 (little to
+  localise) — the caveat we flagged. IG ≈ vanilla-grad (best); occlusion weaker. Example timelines
+  (`figs/example_timelines.png`) show importance spiking inside the human span (compelling).
+- **Faithfulness**: comprehensiveness +0.067, sufficiency 0.074 (positive/modest — frames genuinely used).
+- **B1 modality attribution** (ablation): overall text 48% / vision 47% / audio 5%. Vision dominates
+  for **Jews** (50%, audio 12%) → plausibly symbol-based/antisemitic hate is more visual. Nice finding.
+- Rationale masks: ViT-frame j ↔ second j*step; 429 hate videos (147/292 no-video excluded).
+- Not yet committed/pushed to GitHub (offer pending).
+
+## ✅ CONTRIBUTION A DONE (multi-task target classification)
+Second head on M4 predicts target group (Blacks/Jews/Other), masked to hate videos, seed 2021,
+5-fold. New scripts: `Codes/make_target_labels.py`, `contribA_multitask.py` (env `HATEMM_LAMBDA`
+0=single/1=multi), `contribA_report.py`. Results in `runs/contribA/` (+ `contribA_summary.md`,
+`figs/target_confusion.png`). Ran on GPU (driver restored).
+- **Hate task unchanged**: single-task λ0 mF1 0.770 vs multi-task λ1 mF1 0.770 (Δ −0.001) → target
+  head is "free" (≈ M4's 0.767).
+- **Target task**: macro-F1 **0.378** (95% CI [0.344, 0.450]) vs majority 0.285 / random 0.333.
+  Blacks recall 0.93 (F1 0.85); Jews F1 0.25; Other F1 0.09 → strong on majority, weak on minority
+  (severe imbalance; model over-predicts Blacks). Honest limitation → future work.
+- Target label build: primary target, 3-class {Blacks 321, Jews 67, Other 43}; multi-target→primary.
+- Not yet committed/pushed to GitHub (offer pending).
+
 ## ✅ PHASE 1 REPRODUCTION COMPLETE (2026-07-14)
 
 All 7 models trained. **Successful reproduction** — all within ±0.05 of paper Table 3, 5/7

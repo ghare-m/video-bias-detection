@@ -1,24 +1,4 @@
-"""make_folds.py  (NEW — not part of the original HateMM repo)
-
-The original code loads two pickle files that the dataset/repo never ships:
-  - final_allNewData.p : a single train/val/test split
-  - allFoldDetails.p   : 5-fold stratified CV splits (what scripts 6/7/8/9 iterate over)
-
-This script regenerates both deterministically from HateMM_annotation.csv so the
-reproduction is fair and repeatable (seed=2021, matching the paper's fix_the_random).
-
-Input  : $HATEMM_ROOT/HateMM_annotation.csv   (cols: video_file_name,label,hate_snippet,target)
-Output : $HATEMM_ROOT/final_allNewData.p
-         $HATEMM_ROOT/allFoldDetails.p
-         $HATEMM_ROOT/fold_ids.json           (human-readable record of every split)
-
-Keys are video STEMS without extension (e.g. 'hate_video_1'), matching how every
-downstream script keys frames/features. Labels: Hate -> 1, Non Hate -> 0.
-
-Pickle structure (exactly what scripts 3/4/5/6/7/8/9 expect):
-  final_allNewData.p -> {'train': (ids, labels), 'val': (ids, labels), 'test': (ids, labels)}
-  allFoldDetails.p   -> {'fold1': {'train':(ids,labels),'val':(...),'test':(...)}, ... 'fold5': ...}
-"""
+"""Build train/val/test and 5-fold stratified splits from the annotation CSV (seed 2021)."""
 
 import os
 import csv

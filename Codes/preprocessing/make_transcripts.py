@@ -1,16 +1,4 @@
-"""make_transcripts.py  (NEW — not part of the original HateMM repo)
-
-The original code loads $HATEMM_ROOT/all__video_vosk_audioMap.p, a dict {stem: transcript}
-produced by Vosk offline ASR (the paper used Vosk). The repo ships no code for it.
-This script transcribes every wav in AudioFiles/ with the Vosk English model.
-
-Input  : $HATEMM_ROOT/AudioFiles/<stem>.wav   (16 kHz mono — produced by extract_audio.py)
-         $HATEMM_ROOT/vosk-model-en-us-0.22/   (unzipped Vosk model)
-Output : $HATEMM_ROOT/all__video_vosk_audioMap.p   ({stem: transcript_string})
-
-SLOW: several hours for 1083 clips, CPU-bound. Resumable — it reloads any existing
-output pickle and skips stems already transcribed, dumping progress periodically.
-"""
+"""Transcribe every WAV with the Vosk English model into a {stem: transcript} pickle."""
 
 import os
 import json

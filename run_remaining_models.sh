@@ -9,8 +9,8 @@ cd /home/gharem/Work/Dissertation/HateMM
 mkdir -p logs runs/phase1
 rm -f logs/train_ALLDONE.flag
 
-S6="Codes/6.Vision+lstm_foldWise.py"
-S9="Codes/9. MultiModalFusionModelfoldWise.py"
+S6="Codes/reproduction/train_vision_lstm.py"
+S9="Codes/reproduction/train_fusion.py"
 
 echo "[$(date +%H:%M:%S)] START V3"
 HATEMM_TAG=V3_vitlstm python "$S6" > logs/train_V3.log 2>&1

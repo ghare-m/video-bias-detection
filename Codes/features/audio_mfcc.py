@@ -3,7 +3,7 @@ import os
 import csv
 import pandas as pd
 import glob
-# repro fix: removed `import moviepy.editor as mp` (unused here, and the module was
+# removed `import moviepy.editor as mp` (unused here, and the module was
 # deleted in moviepy 2.x so it would crash on import)
 import torch
 import pandas as pd
@@ -12,7 +12,7 @@ import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, random_split
 import librosa.display
 import matplotlib
-matplotlib.use("Agg")  # repro fix: headless backend (SSH, no display)
+matplotlib.use("Agg")  # headless backend (SSH, no display)
 import matplotlib.pyplot as plt
 import tarfile
 import torch.nn as nn
@@ -24,11 +24,11 @@ from tqdm import tqdm
 # Helper function to generate mfccs
 def extract_mfcc(path):
     audio, sr=librosa.load(path)
-    # repro fix: modern librosa requires keyword args (was positional: mfcc(audio, sr, ...))
+    # modern librosa requires keyword args (was positional: mfcc(audio, sr, ...))
     mfccs=librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=40)
     return np.mean(mfccs.T, axis=0)
 
-# repro fix: read project root from env (was hardcoded './'); keep trailing '/' so
+# read project root from env (was hardcoded './'); keep trailing '/' so
 # `FOLDER_NAME+'file.p'` resolves correctly (matches original './' convention)
 FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
 audioPath = FOLDER_NAME + "AudioFiles/"
@@ -108,7 +108,7 @@ import matplotlib.pyplot as plt
 
 
 from tqdm import tqdm
-# repro fix: original used an undefined `path`; spectrograms read from audioPath.
+# original used an undefined `path`; spectrograms read from audioPath.
 # Also ensure the output dir exists (script 4 reads these PNGs).
 os.makedirs(FOLDER_NAME + "/Audio_plots/", exist_ok=True)
 for selected_folder in tqdm(allVidList):

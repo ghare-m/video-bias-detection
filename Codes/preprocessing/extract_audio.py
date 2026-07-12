@@ -1,15 +1,4 @@
-"""extract_audio.py  (NEW — not part of the original HateMM repo)
-
-The original scripts read $HATEMM_ROOT/AudioFiles/<stem>.wav but the repo ships no code
-to create them. This script extracts the audio track of every video into a 16 kHz mono
-PCM wav — a format that is both Vosk-ready (for transcription) and fine for librosa MFCC.
-
-Input  : $HATEMM_ROOT/AllVideos/*.mp4
-Output : $HATEMM_ROOT/AudioFiles/<stem>.wav
-         $HATEMM_ROOT/audio_extract_failures.txt   (videos with no/!decodable audio)
-
-moviepy is 2.x in this env -> `from moviepy import VideoFileClip` (NOT moviepy.editor).
-"""
+"""Extract 16 kHz mono WAV audio from every video (moviepy/ffmpeg)."""
 
 import os
 import glob

@@ -13,7 +13,7 @@ import torch
 
 
 import os
-# repro fix: read project root from env (was 'DataSetLocaltion/')
+# read project root from env (was 'DataSetLocaltion/')
 FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + '/'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -23,6 +23,8 @@ with open(FOLDER_NAME+'all__video_vosk_audioMap.p','rb') as fp:
 
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from models import *
 
 model = Model_Rational_Label.from_pretrained("Hate-speech-CNERG/bert-base-uncased-hatexplain-rationale-two")
@@ -66,7 +68,7 @@ import numpy as np
 
 
 
-model2 = Text_Model().to(device).eval()  # repro fix: GPU
+model2 = Text_Model().to(device).eval()  # GPU
 
 
 
@@ -79,7 +81,7 @@ for i in tqdm(transCript):
         allEmbedding[i]= (model2(apr['input_ids'].to(device), apr['attention_masks'].to(device))[2][0]).detach().cpu().numpy()
     del(apr)
   except Exception as e:
-    print(f"HXP-FAIL {i}: {type(e).__name__}: {e}")  # repro fix: log instead of silent pass
+    print(f"HXP-FAIL {i}: {type(e).__name__}: {e}")  # log instead of silent pass
 
 
 
@@ -94,7 +96,7 @@ from transformers import BertTokenizer, BertModel
 import torch
 
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-model = BertModel.from_pretrained("bert-base-uncased").to(device).eval()  # repro fix: GPU
+model = BertModel.from_pretrained("bert-base-uncased").to(device).eval()  # GPU
 
 
 
@@ -110,7 +112,7 @@ for i in tqdm(transCript):
         allEmbedding[i]= last_hidden_states[0][0].detach().cpu().numpy()
     del(outputs)
   except Exception as e:
-    print(f"BERT-FAIL {i}: {type(e).__name__}: {e}")  # repro fix: log instead of silent pass
+    print(f"BERT-FAIL {i}: {type(e).__name__}: {e}")  # log instead of silent pass
 
 
 len(allEmbedding)

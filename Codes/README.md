@@ -1,44 +1,31 @@
-# Detail of the Shared Code
+# Code layout
 
-#To Extract the Text-based Features
+Run every script from the repo root with `HATEMM_ROOT` pointing at the data directory
+(see the top-level `README.md`). Scripts read/write features and results under `$HATEMM_ROOT`.
 
-1.FastTextEmb_and_LASEREmbExtraction.py 
-2.BERTandHateXPlainEmbedding.py
+```
+Codes/
+  preprocessing/
+    extract_frames.py     # 1 fps frames  -> Dataset_Images/<stem>/
+    extract_audio.py      # 16 kHz mono wav per video -> AudioFiles/
+    make_transcripts.py   # Vosk transcripts -> all__video_vosk_audioMap.p
+    make_folds.py         # train/val/test + 5-fold splits (seed 2021)
+  features/
+    text.py               # HateXplain + BERT transcript embeddings
+    audio_mfcc.py         # MFCC features + spectrogram images
+    audio_vgg19.py        # VGG19 features from the spectrograms
+    video_vit.py          # ViT per-frame features -> VITF/<stem>_vit.p
+    models.py             # HateXplain model wrapper (used by text.py)
+  reproduction/
+    train_unimodal.py     # text/audio ANN baselines (T4, A2)
+    train_vision_lstm.py  # ViT + LSTM vision model (V3)
+    train_fusion.py       # multimodal fusion (M1-M4)
+  contribA/               # target-community classification (multi-task)
+    make_target_labels.py, train_multitask.py, report.py
+  contribB/               # explainability vs human rationale spans
+    make_rationale_masks.py, explain.py, report.py
+```
 
-# To Extract the Audio Based Features
-
-3.AudioMFCC_Feat_andSpectrumGen.py  
-4.AudioVGG19andInceptionFeat.py
-
-# To Extract the Video Based Features
-
-4.AudioVGG19andInceptionFeat.py 
-5.Model-ViT_featureExtract.py
-
-# To Run all the Unimodal Models
-
-8. UnimodalANN_foldWise.py
-
-# To Run the unimodal Vision Based models
-
-6.Vision+lstm_foldWise.py   
-7.3DCNN_withFolds.py
-
-# To Run the Multimodal Model
-       
-9. MultiModalFusionModelfoldWise.py
-
-# To extract all the video frames.
-frameExtract.py
-
-# Extraction of transcript
-
-The 'all__video_vosk_audioMap.p' has to be generated using the Vosk speech recognition toolkit(https://alphacephei.com/vosk/). The format of the file is in JSON format like the below:
-
-{
-  "video_name1": "transcript1",
-  "video_name2": "transcript2",
-  ...
-  "video_name3": "transcript3"
-}
-
+Training scripts are configured through environment variables (e.g. `HATEMM_TEXT`,
+`HATEMM_AUDIO`, `HATEMM_AUDIO_DIM`, `HATEMM_FOLDS`, `HATEMM_EPOCHS`, `HATEMM_TAG`,
+`HATEMM_LAMBDA`); see `run_remaining_models.sh`, `run_contribA.sh`, `run_contribB.sh`.
