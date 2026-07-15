@@ -12,7 +12,10 @@ from transformers import BertTokenizer, BertModel, AutoModel
 import torch
 
 
-FOLDER_NAME = 'DataSetLocaltion/'
+import os
+# repro fix: read project root from env (was 'DataSetLocaltion/')
+FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + '/'
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 import pickle
 with open(FOLDER_NAME+'all__video_vosk_audioMap.p','rb') as fp:
@@ -63,7 +66,7 @@ import numpy as np
 
 
 
-model2 = Text_Model()
+model2 = Text_Model().to(device).eval()  # repro fix: GPU
 
 
 
@@ -73,10 +76,10 @@ for i in tqdm(transCript):
   try:
     apr = tokenize([transCript[i]])
     with torch.no_grad():
-        allEmbedding[i]= (model2(apr['input_ids'], apr['attention_masks'])[2][0]).detach().numpy()
+        allEmbedding[i]= (model2(apr['input_ids'].to(device), apr['attention_masks'].to(device))[2][0]).detach().cpu().numpy()
     del(apr)
-  except:
-    pass
+  except Exception as e:
+    print(f"HXP-FAIL {i}: {type(e).__name__}: {e}")  # repro fix: log instead of silent pass
 
 
 
@@ -91,7 +94,7 @@ from transformers import BertTokenizer, BertModel
 import torch
 
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-model = BertModel.from_pretrained("bert-base-uncased")
+model = BertModel.from_pretrained("bert-base-uncased").to(device).eval()  # repro fix: GPU
 
 
 
@@ -100,15 +103,14 @@ allEmbedding ={}
 for i in tqdm(transCript):
   try:
     inputs = tokenizer(transCript[i], return_tensors="pt", truncation = True, padding='max_length', add_special_tokens=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
         outputs = model(**inputs)
         last_hidden_states = outputs.last_hidden_state
-        allEmbedding[i]= last_hidden_states[0][0].detach().numpy()
+        allEmbedding[i]= last_hidden_states[0][0].detach().cpu().numpy()
     del(outputs)
-  except:
-    pass
-
-:
+  except Exception as e:
+    print(f"BERT-FAIL {i}: {type(e).__name__}: {e}")  # repro fix: log instead of silent pass
 
 
 len(allEmbedding)

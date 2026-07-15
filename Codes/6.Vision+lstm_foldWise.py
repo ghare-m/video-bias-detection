@@ -1,5 +1,10 @@
 
-FOLDER_NAME = '../../'
+import os
+# repro fix: project root from env (was '../../'), trailing '/'
+FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
+_EPOCHS = int(os.environ.get("HATEMM_EPOCHS", "20"))
+_FOLDS  = os.environ.get("HATEMM_FOLDS", "fold1,fold2,fold3,fold4,fold5").split(",")
+_TAG    = os.environ.get("HATEMM_TAG", "V3_vitlstm")
 
 """Video classification model part
 
@@ -142,7 +147,7 @@ num_layers = 2
 
 # training parameters
 k = 2            # number of target category
-epochs = 20
+epochs = _EPOCHS  # repro: env-configurable
 batch_size = 10
 learning_rate = 0.001 #1e-4
 log_interval = 1
@@ -250,7 +255,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-allF = ['fold1', 'fold2', 'fold3', 'fold4', 'fold5']
+allF = _FOLDS  # repro: env-configurable
 
 
 finalOutputAccrossFold ={}
@@ -316,7 +321,8 @@ for fold in allF:
     finalOutputAccrossFold[fold] = {'validation':validFinalValue, 'test': testFinalValue, 'test_prediction': prediction}
         
 
-with open('foldWiseRes_lstmVision.p', 'wb') as fp:
+os.makedirs(FOLDER_NAME+"../runs/phase1", exist_ok=True)
+with open(FOLDER_NAME+f"../runs/phase1/foldWiseRes_{_TAG}.p", 'wb') as fp:  # repro: tagged output
     pickle.dump(finalOutputAccrossFold,fp)
         
 allValueDict ={}

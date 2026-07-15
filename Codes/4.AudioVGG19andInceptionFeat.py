@@ -1,226 +1,81 @@
+"""4.AudioVGG19andInceptionFeat.py  (REPRO REWRITE)
 
+The original script here was non-functional: undefined `device` / `num_video_features` /
+`num_audio_features` / `vidFeatureMap`, a nonsensical PCA reshaping block, a wrong audio path
+(`/Audio/Audio_plots/` vs the `/Audio_plots/` that script 3 writes), and an InceptionV3 video
+branch that is OUT OF SCOPE for our reproduction (model V2 dropped).
 
-FOLDER_NAME = '../../'
+This rewrite keeps only the part we need — the **AudioVGG19 (A2)** feature used by the paper:
+each audio spectrogram PNG (from script 3) → VGG19 (ImageNet-pretrained) → the **1000-d** output
+vector, exactly as the paper describes ("1000 dimensional feature vectors ... pre-trained VGG-19").
+Image preprocessing matches the original (Resize 224, ToTensor, Normalize(0.5, 0.5)).
 
-
+Input  : $HATEMM_ROOT/Audio_plots/<stem>.png   (1068 — produced by script 3)
+         $HATEMM_ROOT/final_allNewData.p        (the full video list)
+Output : $HATEMM_ROOT/vgg19_audFeatureMap.p     ({stem: [1000 floats]})
+         Missing spectrograms (the 15 no-audio videos) are zero-filled so all 1083 are covered.
+"""
 
 import os
-import numpy as np
-import pandas as pd
+import pickle
+
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.transforms as transforms
-import torch.utils.data as data
-import torchvision
-from torch.autograd import Variable
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from sklearn.metrics import accuracy_score
 from PIL import Image
-import pickle
 from tqdm import tqdm
-from sklearn.metrics import *
 
+FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
+AUDIO_PLOTS = FOLDER_NAME + "Audio_plots/"
+OUT_PATH = FOLDER_NAME + "vgg19_audFeatureMap.p"
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Video image feature extractor
-inception_v3 = models.inception_v3(pretrained=True)
+# VGG19 pretrained on ImageNet; its 1000-class output is used as the 1000-d audio feature.
+vgg19 = models.vgg19(weights=models.VGG19_Weights.IMAGENET1K_V1).to(device).eval()
 
+# Same preprocessing the original used for the audio spectrogram images.
+transform = transforms.Compose([
+    transforms.Resize([224, 224]),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5], std=[0.5]),
+])
 
-# Audio feature extractor
-vgg19 = models.vgg19(pretrained=True)
-
-
-
-k = 2
-epochs = 1
-batch_size = 1
-learning_rate = 1e-4
-log_interval = 1
-minFrames = 100
-img_x1, img_y1 = 299, 299
-img_x2, img_y2 = 224, 224
-
-begin_frame, end_frame, skip_frame = 0, minFrames, 0
-
-
-
-
-def evalMetric(y_true, y_pred):
-   accuracy = accuracy_score(y_true, y_pred)
-   mf1Score = f1_score(y_true, y_pred, average='macro')
-   f1Score  = f1_score(y_true, y_pred, labels = np.unique(y_pred))
-   fpr, tpr, _ = roc_curve(y_true, y_pred)
-   area_under_c = auc(fpr, tpr)
-   recallScore = recall_score(y_true, y_pred, labels = np.unique(y_pred))
-   precisionScore = precision_score(y_true, y_pred, labels = np.unique(y_pred))
-   return dict({"accuracy": accuracy, 'mF1Score': mf1Score, 'f1Score': f1Score, 'auc': area_under_c,
-           'precision': precisionScore, 'recall': recallScore})
-
-
-
-import pickle
-with open(FOLDER_NAME+'final_allNewData.p', 'rb') as fp:
-    allDataAnnotation = pickle.load(fp)
-
-# train, test split
-train_list, train_label= allDataAnnotation['train']
-val_list, val_label  =  allDataAnnotation['val']
-test_list, test_label  =  allDataAnnotation['test']
-
-
-# In[27]:
-
-
+# Full video list (train+val+test) from the split file.
+with open(FOLDER_NAME + "final_allNewData.p", "rb") as fp:
+    ann = pickle.load(fp)
 allVidList = []
-allVidLab = []
-
-allVidList.extend(train_list)
-allVidList.extend(val_list)
-allVidList.extend(test_list)
-
-allVidLab.extend(train_label)
-allVidLab.extend(val_label)
-allVidLab.extend(test_label)
+for split in ("train", "val", "test"):
+    allVidList.extend(ann[split][0])
+print(f"{len(allVidList)} videos to featurize")
 
 
-
-
-# image transformation
-transform1 = transforms.Compose([transforms.Resize([img_x1, img_y1]),
-                                transforms.ToTensor(),
-                                transforms.Normalize(mean=[0.5], std=[0.5])])
-
-transform2 = transforms.Compose([transforms.Resize([img_x2, img_y2]),
-                                transforms.ToTensor(),
-                                transforms.Normalize(mean=[0.5], std=[0.5])])
-
-selected_frames = np.arange(begin_frame, end_frame).tolist()
-
-
-
-
-def read_images(path, selected_folder, use_transform):
-    X = []
-    currFrameCount = 0
-    videoFrameCount = len([name for name in os.listdir(os.path.join(path, selected_folder))])
-    if videoFrameCount <= minFrames:
-        for i in range(videoFrameCount):
-            image = Image.open(os.path.join(path, selected_folder, 'frame_{}.jpg'.format(i)))
-
-            if use_transform is not None:
-                image = use_transform(image)
-
-            X.append(image.squeeze_(0))
-            currFrameCount += 1
-            if(currFrameCount==minFrames):
-                break
-        paddingImage = Image.fromarray(np.zeros((100,100)), 'RGB')
-        if use_transform is not None:
-            paddingImage = use_transform(paddingImage)
-        while currFrameCount < minFrames:
-            X.append(paddingImage.squeeze_(0))
-            currFrameCount+=1
-        X = torch.stack(X, dim=0)
-    else:
-        step = int(videoFrameCount/minFrames)
-        for i in range(0,videoFrameCount,step):
-            image = Image.open(os.path.join(path, selected_folder, 'frame_{}.jpg'.format(i)))
-
-            if use_transform is not None:
-                image = use_transform(image)
-
-            X.append(image.squeeze_(0))
-            currFrameCount += 1
-            if(currFrameCount==minFrames):
-                break
-        paddingImage = Image.fromarray(np.zeros((100,100)), 'RGB')
-        if use_transform is not None:
-            paddingImage = use_transform(paddingImage)
-        while currFrameCount < minFrames:
-            X.append(paddingImage.squeeze_(0))
-            currFrameCount+=1
-        X = torch.stack(X, dim=0)
-
-    return X
-
-
-
-def read_audio(path, selected_folder, use_transform):
-    X = []
-    path = os.path.join(path, selected_folder+'.png')
-    X_audio = use_transform(Image.open(path))
-    X.append((X_audio[:3,:,:]).squeeze_(0))
-    X = torch.stack(X, dim=0)
-    return X
-
-
-
-
-# set path
-data_image_path = FOLDER_NAME + "/Dataset_Images/"   
-data_audio_path = FOLDER_NAME + "/Audio/Audio_plots/"
-
-
-# In[25]:
-
-
-from tqdm import tqdm
-
-X_Video = []
-X_Audio = []
-
-
-inception_v3.eval()
-vgg19.eval()
-
-# inception_v3 = inception_v3.to(device)
-# vgg19 = vgg19.to(device)
-
-for folder in tqdm(allVidList):
-    video = read_images(data_image_path, folder, transform1)
-    audio = read_audio(data_audio_path, folder, transform2)
-
-    video_features = torch.tensor(inception_v3(video.to(device)))
-
-    U, S, V = torch.pca_lowrank(video_features.view(-1,1), center = True)
-    video_features = torch.matmul(video_features.view(-1,1), V[:, :num_video_features])
-    video_features = video_features.view(-1).tolist()
-
-    audio_features = vgg19(audio.to(device))
-    U, S, V = torch.pca_lowrank(audio_features.view(-1,1), center = True)
-    audio_features = torch.matmul(audio_features.view(-1,1), V[:, :num_audio_features])
-    audio_features = audio_features.view(-1).tolist()
-    
-    del video
-    del audio
-    
-
-    X_Video.append(video_features)
-    X_Audio.append(audio_features)
-
-
-
-
-
-
-for i in zip(allVidList, X_Video):
-    vidFeatureMap[i[0]]=i[1]
-    
-with open('inception_vidFeatures.p', 'wb') as fp:
-    pickle.dump(vidFeatureMap, fp)
-
-
-
+def vgg19_feature(png_path):
+    img = Image.open(png_path).convert("RGB")          # matplotlib PNGs are RGBA -> force 3-channel
+    x = transform(img).unsqueeze(0).to(device)          # (1, 3, 224, 224)
+    with torch.no_grad():
+        out = vgg19(x)                                  # (1, 1000)
+    return out.view(-1).cpu().tolist()
 
 
 audFeatureMap = {}
+missing = []
+for stem in tqdm(allVidList):
+    png = os.path.join(AUDIO_PLOTS, stem + ".png")
+    if os.path.exists(png):
+        try:
+            audFeatureMap[stem] = vgg19_feature(png)
+        except Exception as e:
+            print(f"VGG19-FAIL {stem}: {type(e).__name__}: {e}")
+            missing.append(stem)
+    else:
+        missing.append(stem)
 
-for i in zip(allVidList, X_Audio):
-    audFeatureMap[i[0]]=i[1]
-    
-with open('vgg19_audFeatureMap.p', 'wb') as fp:
+# zero-fill videos with no spectrogram (the 15 no-audio videos) so all 1083 are covered
+for stem in missing:
+    audFeatureMap[stem] = [0.0] * 1000
+print(f"Done. {len(audFeatureMap)} entries ({len(missing)} zero-filled).")
+
+with open(OUT_PATH, "wb") as fp:
     pickle.dump(audFeatureMap, fp)
+print(f"Wrote {OUT_PATH}")

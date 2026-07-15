@@ -1,4 +1,12 @@
-FOLDER_NAME = '../../'
+import os
+# repro fix: project root from env (was '../../'), trailing '/'
+FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
+# repro: env-configurable so one script handles T4 (HateXplain) and A2 (VGG19), etc.
+_FEAT_PICKLE = os.environ.get("HATEMM_FEAT", "vgg19_audFeatureMap.p")
+_FEAT_DIM    = int(os.environ.get("HATEMM_FEAT_DIM", "1000"))
+_EPOCHS      = int(os.environ.get("HATEMM_EPOCHS", "20"))
+_FOLDS       = os.environ.get("HATEMM_FOLDS", "fold1,fold2,fold3,fold4,fold5").split(",")
+_TAG         = os.environ.get("HATEMM_TAG", "audiovgg19")
 
 """Video classification model part
 
@@ -107,21 +115,16 @@ def evalMetric(y_true, y_pred):
 
 
 import pickle
-#with open(FOLDER_NAME+'all_fastTextEmbedding.p','rb') as fp:
-#with open(FOLDER_NAME+'all_LaserEmbedding.p','rb') as fp:
-#with open(FOLDER_NAME+'all_HateXPlainembedding.p','rb') as fp:
-#with open(FOLDER_NAME+'all_rawBERTembedding.p','rb') as fp:
-#with open(FOLDER_NAME+'MFCCFeatures.p','rb') as fp:
-with open(FOLDER_NAME+'vgg19_audFeatureMap.p','rb') as fp:
+with open(FOLDER_NAME+_FEAT_PICKLE,'rb') as fp:   # repro: env-selected feature (HateXplain / VGG19 / ...)
     inputDataFeatures = pickle.load(fp)
 
 # Audio parameters
-input_size_audio = 1000
+input_size_audio = _FEAT_DIM   # repro: 768 (HateXplain) or 1000 (VGG19) via env
 fc1_hidden_audio, fc2_hidden_audio = 128, 128
 
 # training parameters
 k = 2            # number of target category
-epochs = 20
+epochs = _EPOCHS  # repro: env-configurable
 batch_size = 10
 learning_rate = 1e-4
 log_interval = 1
@@ -230,7 +233,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-allF = ['fold1', 'fold2', 'fold3', 'fold4', 'fold5']
+allF = _FOLDS  # repro: env-configurable
 
 
 finalOutputAccrossFold ={}
@@ -296,7 +299,8 @@ for fold in allF:
     finalOutputAccrossFold[fold] = {'validation':validFinalValue, 'test': testFinalValue, 'test_prediction': prediction}
         
 
-with open('foldWiseRes_audiovgg19.p', 'wb') as fp:
+os.makedirs(FOLDER_NAME+"../runs/phase1", exist_ok=True)
+with open(FOLDER_NAME+f"../runs/phase1/foldWiseRes_{_TAG}.p", 'wb') as fp:  # repro: tagged output
     pickle.dump(finalOutputAccrossFold,fp)
         
 allValueDict ={}

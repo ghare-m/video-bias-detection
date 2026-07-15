@@ -1,5 +1,8 @@
 
-FOLDER_NAME = './'
+import os
+# repro fix: read project root from env (was hardcoded './'); trailing '/' so
+# `FOLDER_NAME+'final_allNewData.p'` resolves correctly
+FOLDER_NAME = os.environ.get("HATEMM_ROOT", "/home/gharem/Work/Dissertation/HateMM/data") + "/"
 
 
 
@@ -44,6 +47,9 @@ print(torch.__version__)
 
 feature_extractor = ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224-in21k")
 model = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k")
+# repro fix: run ViT on GPU (original ran on CPU -> very slow for 100 frames x 1083 videos)
+_vit_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(_vit_device).eval()
 
 
 # In[6]:
@@ -152,21 +158,29 @@ import numpy as np
 from tqdm import tqdm
 import os
 
+# repro fix: write VITF under the project root (was cwd-relative) and ensure it exists
+vitf_dir = os.path.join(FOLDER_NAME, "VITF")
+os.makedirs(vitf_dir, exist_ok=True)
 for folder, label in tqdm(list(zip(allVidList, allVidLab))):
-    if os.path.exists("VITF/"+folder+"_vit.p")==True:
+    out_p = os.path.join(vitf_dir, folder + "_vit.p")
+    if os.path.exists(out_p):
         continue
     try:
         video = read_images(data_image_path, folder)
         inputs = feature_extractor(images=video, return_tensors="pt")
-        outputs = model(**inputs)
+        # repro fix: run on GPU
+        inputs = {k: v.to(_vit_device) for k, v in inputs.items()}
+        with torch.no_grad():
+            outputs = model(**inputs)
         last_hidden_states = outputs.last_hidden_state
-        video_features =[(last_hidden_states[i][0].detach().numpy()) for i in range(0,100)]
-        with open("VITF/"+folder+"_vit.p", 'wb') as fp:
+        video_features =[(last_hidden_states[i][0].detach().cpu().numpy()) for i in range(0,100)]
+        with open(out_p, 'wb') as fp:
             pickle.dump(video_features,fp)
         del video
         del inputs
         del last_hidden_states
-    except:
-        print(folder)
+    except Exception as e:
+        # repro fix: log the actual error instead of silently swallowing (context.md §6.9)
+        print(f"VIT-FAIL {folder}: {type(e).__name__}: {e}")
         pass
 
